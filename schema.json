@@ -56,9 +56,8 @@
     },
     "Proxy": {
       "type": "string",
-      "pattern": "^(socks5|socks4|http|https)://.*",
+      "pattern": "^(socks5|http|https)://.*",
       "examples": [
-        "socks4://127.0.0.1:9050",
         "socks5://127.0.0.1:9050",
         "http://127.0.0.1:80",
         "https://127.0.0.1:443"

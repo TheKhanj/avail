@@ -10,12 +10,39 @@ import (
 	"time"
 
 	"github.com/thekhanj/avail/common"
+	"github.com/thekhanj/avail/config"
 )
 
 type PingOption = func(ping *Ping)
 
 func GetPingsVarDir() string {
 	return filepath.Join(common.GetVarDir(), "pings")
+}
+
+func NewPingFromConfig(cfg *config.Ping) (*Ping, error) {
+	interval, err := time.ParseDuration(string(cfg.Interval))
+	if err != nil {
+		return nil, err
+	}
+	timeout, err := time.ParseDuration(string(cfg.Timeout))
+	if err != nil {
+		return nil, err
+	}
+
+	client := http.DefaultClient
+	if cfg.Proxy != nil {
+		client, err = NewProxiedHttpClient(string(*cfg.Proxy))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return NewPing(
+		cfg.Title, cfg.Url,
+		PingWithInterval(interval),
+		PingWithTimeout(timeout),
+		PingWithClient(client),
+	)
 }
 
 func NewPing(title, url string, opts ...PingOption) (*Ping, error) {
@@ -42,7 +69,7 @@ func NewPing(title, url string, opts ...PingOption) (*Ping, error) {
 		return nil, fmt.Errorf("not a directory: %s", base.path)
 	}
 	if err != nil {
-		err = os.MkdirAll(base.path, 755)
+		err = os.MkdirAll(base.path, 0755)
 		if err != nil {
 			return nil, err
 		}
@@ -100,11 +127,11 @@ func (this *Ping) Run(ctx context.Context) {
 	defer this.cleanup()
 
 	this.log.Printf(
-		"running tests on \"%s\"(path: \"%s\")...\n",
+		"running HTTP ping on \"%s\" (path: \"%s\")...\n",
 		this.url, this.path,
 	)
 	defer this.log.Printf(
-		"running tests on \"%s\"(path: \"%s\") done\n",
+		"running HTTP ping on \"%s\" (path: \"%s\") done\n",
 		this.url, this.path,
 	)
 
@@ -119,7 +146,7 @@ func (this *Ping) Run(ctx context.Context) {
 }
 
 func (this *Ping) cleanup() {
-	err := os.Remove(this.path)
+	err := os.RemoveAll(this.path)
 	if err != nil {
 		this.log.Println(err)
 	}
@@ -151,9 +178,9 @@ func (this *Ping) check(ctx context.Context) error {
 
 func (this *Ping) update(latency int64, up bool) {
 	if up {
-		this.log.Printf("GET request succeeded (latency: %d)\n", latency)
+		this.log.Printf("GET request succeeded (latency: %d ms)\n", latency)
 	} else {
-		this.log.Printf("GET request failed (latency: %d)\n", latency)
+		this.log.Printf("GET request failed (latency: %d ms)\n", latency)
 	}
 
 	err := os.WriteFile(
