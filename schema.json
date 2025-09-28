@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pings"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "pidFile": {
+      "type": "string",
+      "description": "Path to write the pid to. For the user root defaults to /var/run/avail/main.pid and for other users defaults to /var/run/user/{uid}/avail/main.pid"
+    },
+    "pings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Ping"
+      }
+    }
+  },
+  "definitions": {
+    "Ping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "url"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "examples": [
+            "google"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "examples": [
+            "https://google.com"
+          ]
+        },
+        "interval": {
+          "$ref": "#/definitions/Duration",
+          "default": "5s"
+        },
+        "timeout": {
+          "$ref": "#/definitions/Duration",
+          "default": "30s"
+        },
+        "proxy": {
+          "$ref": "#/definitions/Proxy"
+        }
+      }
+    },
+    "Proxy": {
+      "type": "string",
+      "pattern": "^(socks5|socks4|http|https)://.*",
+      "examples": [
+        "socks4://127.0.0.1:9050",
+        "socks5://127.0.0.1:9050",
+        "http://127.0.0.1:80",
+        "https://127.0.0.1:443"
+      ]
+    },
+    "Duration": {
+      "type": "string",
+      "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+      "examples": [
+        "5s"
+      ]
+    }
+  }
+}
