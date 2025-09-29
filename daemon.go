@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/thekhanj/avail/common"
 	"github.com/thekhanj/avail/config"
 )
 
@@ -43,7 +44,7 @@ func (this *Daemon) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer this.clearPid()
+	defer this.cleanup()
 
 	pings := make([]*Ping, len(this.cfg.Pings))
 	for i, pingCfg := range this.cfg.Pings {
@@ -72,8 +73,12 @@ func (this *Daemon) runPings(ctx context.Context, pings []*Ping) {
 	wg.Wait()
 }
 
-func (this *Daemon) clearPid() {
+func (this *Daemon) cleanup() {
 	err := os.Remove(this.cfg.GetPidFile())
+	if err != nil {
+		this.log.Println(err)
+	}
+	err = os.Remove(common.GetPidVarDir(syscall.Getpid()))
 	if err != nil {
 		this.log.Println(err)
 	}
@@ -87,7 +92,16 @@ func (this *Daemon) writePid() error {
 		if stat.IsDir() {
 			return fmt.Errorf("PID file already exists and is a directory: %s", pidFile)
 		}
+
 		this.log.Printf("warning: PID file already exists: %s\n", pidFile)
+
+		pid, err := common.GetPid(pidFile)
+		if err != nil {
+			return err
+		}
+		if common.ProcessExists(pid) {
+			return fmt.Errorf("a process with PID %d already exists\n", pid)
+		}
 	}
 
 	dir := filepath.Dir(pidFile)

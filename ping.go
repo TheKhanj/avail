@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/thekhanj/avail/common"
@@ -14,10 +15,6 @@ import (
 )
 
 type PingOption = func(ping *Ping)
-
-func GetPingsVarDir() string {
-	return filepath.Join(common.GetVarDir(), "pings")
-}
 
 func NewPingFromConfig(cfg *config.Ping) (*Ping, error) {
 	interval, err := time.ParseDuration(string(cfg.Interval))
@@ -53,11 +50,11 @@ func NewPing(title, url string, opts ...PingOption) (*Ping, error) {
 		log:      log.New(os.Stderr, title+": ", 0),
 		interval: time.Second * 5,
 		timeout:  time.Second * 30,
-		path:     filepath.Join(GetPingsVarDir(), title),
+		path:     filepath.Join(common.GetPidVarDir(syscall.Getpid()), title),
 		client:   http.DefaultClient,
 
-		ch:    make(chan struct{}),
-		wasUp: false,
+		ch:         make(chan struct{}),
+		wasHealthy: false,
 	}
 
 	for _, o := range opts {
@@ -119,8 +116,8 @@ type Ping struct {
 
 	log *log.Logger
 
-	wasUp bool
-	ch    chan struct{}
+	wasHealthy bool
+	ch         chan struct{}
 }
 
 func (this *Ping) Run(ctx context.Context) {
@@ -176,8 +173,8 @@ func (this *Ping) check(ctx context.Context) error {
 	return nil
 }
 
-func (this *Ping) update(latency int64, up bool) {
-	if up {
+func (this *Ping) update(latency int64, health bool) {
+	if health {
 		this.log.Printf("GET request succeeded (latency: %d ms)\n", latency)
 	} else {
 		this.log.Printf("GET request failed (latency: %d ms)\n", latency)
@@ -186,24 +183,26 @@ func (this *Ping) update(latency int64, up bool) {
 	err := os.WriteFile(
 		filepath.Join(this.path, "latency"),
 		[]byte(fmt.Sprintf("%d\n", latency)),
-		644,
+		0644,
 	)
 	if err != nil {
 		this.log.Println(err)
 	}
 
-	if this.wasUp != up {
+	if this.wasHealthy != health {
 		content := "0\n"
-		if up {
+		if health {
 			content = "1\n"
 		}
 
-		err := os.WriteFile(filepath.Join(this.path, "up"), []byte(content), 644)
+		err := os.WriteFile(
+			filepath.Join(this.path, "health"), []byte(content), 0644,
+		)
 		if err != nil {
 			this.log.Println(err)
 		}
 
-		this.wasUp = up
+		this.wasHealthy = health
 	}
 }
 

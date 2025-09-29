@@ -12,7 +12,7 @@ func (this *Config) GetPidFile() string {
 		return *this.PidFile
 	}
 
-	return filepath.Join(common.GetVarDir(), "main.pid")
+	return filepath.Join(common.GetBaseVarDir(), "main.pid")
 }
 
 func ReadConfig(path string) (*Config, error) {

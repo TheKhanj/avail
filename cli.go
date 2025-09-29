@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -80,7 +79,7 @@ func (this *Cli) run(args []string) int {
 
 	f.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage:")
-		fmt.Fprintln(os.Stderr, "  run -c avail.json")
+		fmt.Fprintln(os.Stderr, "  avail run")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Flags:")
 		f.PrintDefaults()
@@ -100,7 +99,7 @@ func (this *Cli) run(args []string) int {
 
 	cfg, err := config.ReadConfig(*cfgPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return CODE_INVALID_CONFIG
 	}
 
@@ -109,7 +108,7 @@ func (this *Cli) run(args []string) int {
 
 	err = d.Run(ctx)
 	if err != nil {
-		log.Printf("error: %v", err)
+		fmt.Fprintf(os.Stderr, "error: %v", err)
 		return CODE_GENERAL_ERR
 	}
 
@@ -117,7 +116,78 @@ func (this *Cli) run(args []string) int {
 }
 
 func (this *Cli) status(args []string) int {
-	// TODO: implement this
+	f := flag.NewFlagSet("avail", flag.ExitOnError)
+	help := f.Bool("h", false, "show help")
+	cfgPath := f.String("c", this.getDefaultCfg(), "config file")
+	optPid := f.Int("P", 0, "PID of the running daemon")
+	optPidFile := f.String("p", "", "PID file of the running daemon")
+
+	f.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  avail status")
+		fmt.Fprintln(os.Stderr, "  avail status <title...>")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		f.PrintDefaults()
+	}
+
+	f.Parse(args)
+
+	if *help {
+		f.Usage()
+
+		return CODE_SUCCESS
+	}
+
+	var err error
+
+	var pid int
+	if *optPid != 0 {
+		pid = *optPid
+	} else {
+		var pidFile string
+		if *optPidFile != "" {
+			pidFile = *optPidFile
+		} else {
+			cfg, err := config.ReadConfig(*cfgPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				return CODE_INVALID_CONFIG
+			}
+			pidFile = cfg.GetPidFile()
+		}
+		pid, err = common.GetPid(pidFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return CODE_GENERAL_ERR
+		}
+	}
+
+	info := NewInfo(pid)
+
+	titles := f.Args()
+	if len(titles) == 0 {
+		titles, err = info.Titles()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return CODE_GENERAL_ERR
+		}
+	}
+
+	statuses := make([]TitleStatus, len(titles))
+	for i, title := range titles {
+		s, err := info.Status(title)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return CODE_GENERAL_ERR
+		}
+		statuses[i] = s
+	}
+
+	for _, s := range statuses {
+		fmt.Println(s)
+	}
+
 	return CODE_SUCCESS
 }
 
@@ -151,7 +221,7 @@ func (this *Cli) notEnoughArguments() int {
 }
 
 func (this *Cli) extraArgument(arg string) int {
-	fmt.Fprintf(os.Stderr, "error: extra argument: %s\n", arg)
+	fmt.Fprintf(os.Stderr, "error: extra argument: %v\n", arg)
 	fmt.Fprintln(os.Stderr, "Try '-h' for help.")
 
 	return CODE_INVALID_INVOKATION

@@ -7,28 +7,32 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
-func GetVarDir() string {
-	pid := syscall.Getpid()
-
+func GetBaseVarDir() string {
 	if runtime.GOOS == "windows" {
 		base := os.Getenv("LOCALAPPDATA")
 		if base == "" {
 			base = os.TempDir()
 		}
-		return filepath.Join(base, "avail", fmt.Sprintf("%d", pid))
+		return filepath.Join(base, "avail")
 	}
 
 	uid := syscall.Getuid()
 	if uid == 0 {
-		return filepath.Join("/var/run/avail", fmt.Sprintf("%d", pid))
+		return filepath.Join("/var/run/avail")
 	}
 	return filepath.Join(
 		"/var/run/user",
-		fmt.Sprintf("%d", uid), "avail", fmt.Sprintf("%d", pid),
+		fmt.Sprintf("%d", uid), "avail",
 	)
+}
+
+func GetPidVarDir(pid int) string {
+	return filepath.Join(GetBaseVarDir(), fmt.Sprintf("%d", pid))
 }
 
 func NewSignalCtx(
@@ -50,4 +54,24 @@ func NewSignalCtx(
 	}()
 
 	return ctx
+}
+
+func GetPid(pidFile string) (int, error) {
+	b, err := os.ReadFile(pidFile)
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.Atoi(strings.TrimSpace(string(b)))
+}
+
+func ProcessExists(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		// Unreachable on Unix systems
+		return true
+	}
+	err = proc.Signal(syscall.Signal(0))
+
+	return err == nil
 }
