@@ -11,14 +11,59 @@ import (
 	"golang.org/x/term"
 )
 
-type TitleStatus struct {
-	title string
+type SiteStatusList []*SiteStatus
+
+func (this *SiteStatusList) Apply(opts ...SiteStatusOption) {
+	for _, s := range *this {
+		s.Apply(opts...)
+	}
+}
+
+func (this SiteStatusList) String() string {
+	lines := make([]string, len(this))
+
+	for i, s := range this {
+		lines[i] = s.String()
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func (this *SiteStatusList) MaxTitleLength(opts ...SiteStatusOption) int {
+	max := 0
+	for _, s := range *this {
+		if len(s.title) > max {
+			max = len(s.title)
+		}
+	}
+	return max
+}
+
+var _ fmt.Stringer = (*SiteStatusList)(nil)
+
+type SiteStatusOption = func(*SiteStatus)
+
+func SiteStatusWithTitleLength(titleLength int) SiteStatusOption {
+	return func(s *SiteStatus) {
+		s.titleLength = titleLength
+	}
+}
+
+type SiteStatus struct {
+	title       string
+	titleLength int
 
 	Latency int64
 	Health  bool
 }
 
-func (this TitleStatus) String() string {
+func (this *SiteStatus) Apply(opts ...SiteStatusOption) {
+	for _, o := range opts {
+		o(this)
+	}
+}
+
+func (this SiteStatus) String() string {
 	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
 
 	healthColor := ""
@@ -44,15 +89,20 @@ func (this TitleStatus) String() string {
 		health = "FAILED"
 	}
 
+	titleLength := this.titleLength
+	if titleLength == 0 {
+		titleLength = 20
+	}
+
 	return fmt.Sprintf(
-		"%s%-20s%s %s%s%s (latency: %s%d ms%s)",
+		"%s%-"+strconv.Itoa(titleLength+1)+"s%s %s%s%s (latency: %s%d ms%s)",
 		titleColor, this.title+":", colorReset,
 		healthColor, health, colorReset,
 		latencyColor, this.Latency, colorReset,
 	)
 }
 
-var _ fmt.Stringer = (*TitleStatus)(nil)
+var _ fmt.Stringer = (*SiteStatus)(nil)
 
 func NewInfo(pid int) *Info {
 	return &Info{pid}
@@ -80,8 +130,29 @@ func (this *Info) Titles() ([]string, error) {
 	return titles, nil
 }
 
-func (this *Info) Status(title string) (TitleStatus, error) {
-	ret := TitleStatus{title: title}
+func (this *Info) SitesStatus() (SiteStatusList, error) {
+	titles, err := this.Titles()
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make(SiteStatusList, len(titles))
+	for i, title := range titles {
+		s, err := this.SiteStatus(title)
+		if err != nil {
+			return nil, err
+		}
+		ret[i] = &s
+	}
+
+	titleLength := ret.MaxTitleLength()
+	ret.Apply(SiteStatusWithTitleLength(titleLength))
+
+	return ret, nil
+}
+
+func (this *Info) SiteStatus(title string) (SiteStatus, error) {
+	ret := SiteStatus{title: title}
 	dir := filepath.Join(common.GetPidVarDir(this.pid), title)
 
 	latencyFile := filepath.Join(dir, "latency")

@@ -174,20 +174,13 @@ func (this *Cli) status(args []string) int {
 		}
 	}
 
-	statuses := make([]TitleStatus, len(titles))
-	for i, title := range titles {
-		s, err := info.Status(title)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			return CODE_GENERAL_ERR
-		}
-		statuses[i] = s
+	statuses, err := info.SitesStatus()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return CODE_GENERAL_ERR
 	}
 
-	for _, s := range statuses {
-		fmt.Println(s)
-	}
-
+	fmt.Println(statuses)
 	return CODE_SUCCESS
 }
 
