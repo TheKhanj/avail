@@ -66,6 +66,10 @@ func (this *Cli) Exec() int {
 		return this.run(f.Args()[1:])
 	case "status":
 		return this.status(f.Args()[1:])
+	case "list":
+		return this.list(f.Args()[1:])
+	case "schema":
+		return this.schema(f.Args()[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "error: invalid command \"%s\"\n", cmd)
 		return CODE_INVALID_INVOKATION
@@ -181,6 +185,39 @@ func (this *Cli) status(args []string) int {
 	}
 
 	fmt.Println(statuses)
+	return CODE_SUCCESS
+}
+
+func (this *Cli) list(args []string) int {
+	// TODO: implement this
+	return CODE_SUCCESS
+}
+
+func (this *Cli) schema(args []string) int {
+	f := flag.NewFlagSet("avail", flag.ExitOnError)
+	help := f.Bool("h", false, "show help")
+
+	f.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  avail schema")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		f.PrintDefaults()
+	}
+
+	f.Parse(args)
+
+	if *help {
+		f.Usage()
+
+		return CODE_SUCCESS
+	}
+
+	if len(f.Args()) != 0 {
+		return this.extraArgument(f.Arg(0))
+	}
+
+	fmt.Println(common.GetJsonSchemaAddress(VERSION))
 	return CODE_SUCCESS
 }
 

@@ -75,3 +75,12 @@ func ProcessExists(pid int) bool {
 
 	return err == nil
 }
+
+func GetJsonSchemaAddress(version string) string {
+	if version == "dev" {
+		return "https://raw.githubusercontent.com/TheKhanj/avail/refs/heads/master/schema.json"
+	}
+
+	tmp := "https://raw.githubusercontent.com/TheKhanj/avail/refs/tags/%s/schema.json"
+	return fmt.Sprintf(tmp, version)
+}
