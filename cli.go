@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
 
 	"github.com/thekhanj/avail/common"
 	"github.com/thekhanj/avail/config"
@@ -20,6 +20,40 @@ const (
 	CODE_INVALID_INVOKATION
 	CODE_INITIALIZATION_FAILED
 )
+
+type PidFlags struct {
+	cfgPath    string
+	optPid     int
+	optPidFile string
+}
+
+func (this *PidFlags) SetFlags(f *flag.FlagSet) {
+	f.StringVar(&this.cfgPath, "c", common.GetDefaultCfg(), "config file")
+	f.IntVar(&this.optPid, "P", 0, "PID of the running daemon")
+	f.StringVar(&this.optPidFile, "p", "", "PID file of the running daemon")
+}
+
+func (this *PidFlags) GetPid() (int, error) {
+	if this.optPid != 0 {
+		return this.optPid, nil
+	} else {
+		var pidFile string
+		if this.optPidFile != "" {
+			pidFile = this.optPidFile
+		} else {
+			cfg, err := config.ReadConfig(this.cfgPath)
+			if err != nil {
+				return 0, err
+			}
+			pidFile = cfg.GetPidFile()
+		}
+		pid, err := common.GetPid(pidFile)
+		if err != nil {
+			return 0, err
+		}
+		return pid, nil
+	}
+}
 
 type Cli struct {
 	args []string
@@ -37,6 +71,8 @@ func (this *Cli) Exec() int {
 		fmt.Fprintln(os.Stderr, "Available Commands:")
 		fmt.Fprintln(os.Stderr, "  run       run the daemon")
 		fmt.Fprintln(os.Stderr, "  status    show status of sites")
+		fmt.Fprintln(os.Stderr, "  list      list sites")
+		fmt.Fprintln(os.Stderr, "  schema    show http address of config's json schema")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Flags:")
 		f.PrintDefaults()
@@ -79,7 +115,7 @@ func (this *Cli) Exec() int {
 func (this *Cli) run(args []string) int {
 	f := flag.NewFlagSet("avail", flag.ExitOnError)
 	help := f.Bool("h", false, "show help")
-	cfgPath := f.String("c", this.getDefaultCfg(), "config file")
+	cfgPath := f.String("c", common.GetDefaultCfg(), "config file")
 
 	f.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage:")
@@ -122,9 +158,8 @@ func (this *Cli) run(args []string) int {
 func (this *Cli) status(args []string) int {
 	f := flag.NewFlagSet("avail", flag.ExitOnError)
 	help := f.Bool("h", false, "show help")
-	cfgPath := f.String("c", this.getDefaultCfg(), "config file")
-	optPid := f.Int("P", 0, "PID of the running daemon")
-	optPidFile := f.String("p", "", "PID file of the running daemon")
+	pf := PidFlags{}
+	pf.SetFlags(f)
 
 	f.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage:")
@@ -145,26 +180,10 @@ func (this *Cli) status(args []string) int {
 
 	var err error
 
-	var pid int
-	if *optPid != 0 {
-		pid = *optPid
-	} else {
-		var pidFile string
-		if *optPidFile != "" {
-			pidFile = *optPidFile
-		} else {
-			cfg, err := config.ReadConfig(*cfgPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				return CODE_INVALID_CONFIG
-			}
-			pidFile = cfg.GetPidFile()
-		}
-		pid, err = common.GetPid(pidFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			return CODE_GENERAL_ERR
-		}
+	pid, err := pf.GetPid()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return CODE_GENERAL_ERR
 	}
 
 	info := NewInfo(pid)
@@ -189,7 +208,43 @@ func (this *Cli) status(args []string) int {
 }
 
 func (this *Cli) list(args []string) int {
-	// TODO: implement this
+	f := flag.NewFlagSet("avail", flag.ExitOnError)
+	help := f.Bool("h", false, "show help")
+	pf := PidFlags{}
+	pf.SetFlags(f)
+
+	f.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  avail list")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		f.PrintDefaults()
+	}
+
+	f.Parse(args)
+
+	if *help {
+		f.Usage()
+
+		return CODE_SUCCESS
+	}
+
+	var err error
+
+	pid, err := pf.GetPid()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return CODE_GENERAL_ERR
+	}
+
+	info := NewInfo(pid)
+	titles, err := info.Titles()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return CODE_GENERAL_ERR
+	}
+
+	fmt.Println(strings.Join(titles, "\n"))
 	return CODE_SUCCESS
 }
 
@@ -219,28 +274,6 @@ func (this *Cli) schema(args []string) int {
 
 	fmt.Println(common.GetJsonSchemaAddress(VERSION))
 	return CODE_SUCCESS
-}
-
-func (this *Cli) getDefaultCfg() string {
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		configHome = filepath.Join(os.Getenv("HOME"), ".config")
-	}
-
-	locations := [...]string{
-		"avail.json",
-		filepath.Join(configHome, "avail.json"),
-		"/etc/avail.json",
-	}
-
-	for _, path := range locations {
-		_, err := os.Stat(path)
-		if err == nil {
-			return path
-		}
-	}
-
-	return locations[0]
 }
 
 func (this *Cli) notEnoughArguments() int {

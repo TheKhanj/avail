@@ -84,3 +84,25 @@ func GetJsonSchemaAddress(version string) string {
 	tmp := "https://raw.githubusercontent.com/TheKhanj/avail/refs/tags/%s/schema.json"
 	return fmt.Sprintf(tmp, version)
 }
+
+func GetDefaultCfg() string {
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+	if configHome == "" {
+		configHome = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+
+	locations := [...]string{
+		"avail.json",
+		filepath.Join(configHome, "avail.json"),
+		"/etc/avail.json",
+	}
+
+	for _, path := range locations {
+		_, err := os.Stat(path)
+		if err == nil {
+			return path
+		}
+	}
+
+	return locations[0]
+}
