@@ -130,12 +130,7 @@ func (this *Info) Titles() ([]string, error) {
 	return titles, nil
 }
 
-func (this *Info) SitesStatus() (SiteStatusList, error) {
-	titles, err := this.Titles()
-	if err != nil {
-		return nil, err
-	}
-
+func (this *Info) SitesStatus(titles []string) (SiteStatusList, error) {
 	ret := make(SiteStatusList, len(titles))
 	for i, title := range titles {
 		s, err := this.SiteStatus(title)

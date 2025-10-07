@@ -197,7 +197,7 @@ func (this *Cli) status(args []string) int {
 		}
 	}
 
-	statuses, err := info.SitesStatus()
+	statuses, err := info.SitesStatus(titles)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return CODE_GENERAL_ERR
