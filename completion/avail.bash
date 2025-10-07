@@ -52,7 +52,7 @@ _comp_cmd_avail() {
 	fi
 
 	case "$subcmd" in
-	status | list)
+	status)
 		local -a proc=()
 		_comp_xfunc_avail_get_proc proc "${words[@]}"
 		IFS=$'\n' read -rd '' -a titles <<<"$(
