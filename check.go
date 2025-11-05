@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -22,6 +24,7 @@ func (this *StatusCheck) IsUp(res *http.Response) (bool, error) {
 var _ Check = (*StatusCheck)(nil)
 
 type ExecCheck struct {
+	stdin   io.Reader
 	command string
 	log     *log.Logger
 }
@@ -39,6 +42,13 @@ func (this *ExecCheck) IsUp(res *http.Response) (bool, error) {
 		func(e *exec.Exec) error {
 			if this.log != nil {
 				return exec.WithLogger(this.log)(e)
+			}
+
+			return nil
+		},
+		func(e *exec.Exec) error {
+			if this.stdin != nil {
+				return exec.WithStdin(this.stdin)(e)
 			}
 
 			return nil
@@ -72,3 +82,20 @@ func (this *ExecCheck) writeRawHttp(res *http.Response) (string, error) {
 }
 
 var _ Check = (*ExecCheck)(nil)
+
+type ShellCheck struct {
+	shell  string
+	script string
+	log    *log.Logger
+}
+
+func (this *ShellCheck) IsUp(res *http.Response) (bool, error) {
+	e := ExecCheck{}
+	e.stdin = bytes.NewReader([]byte(this.script))
+	e.command = this.shell
+	e.log = this.log
+
+	return e.IsUp(res)
+}
+
+var _ Check = (*ShellCheck)(nil)

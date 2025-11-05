@@ -15,6 +15,13 @@ type Option = func(e *Exec) error
 
 var ErrEmptyCommand = errors.New("Empty command")
 
+func WithStdin(stdin io.Reader) Option {
+	return func(e *Exec) error {
+		e.stdin = stdin
+		return nil
+	}
+}
+
 func WithEnv(env string) Option {
 	return func(e *Exec) error {
 		e.env = append(e.env, env)
@@ -60,6 +67,7 @@ func New(opts ...Option) (*Exec, error) {
 		args:    []string{},
 		env:     []string{},
 		log:     nil,
+		stdin:   nil,
 	}
 
 	var err error
@@ -82,6 +90,7 @@ type Exec struct {
 	args    []string
 	env     []string
 	log     *log.Logger
+	stdin   io.Reader
 }
 
 func (this *Exec) RunContext(ctx context.Context) (int, error) {
@@ -98,6 +107,18 @@ func (this *Exec) Run() (int, error) {
 
 func (this *Exec) run(cmd *exec.Cmd) (int, error) {
 	cmd.Env = this.env
+
+	if this.stdin != nil {
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return 0, err
+		}
+
+		go func() {
+			defer stdin.Close()
+			io.Copy(stdin, this.stdin)
+		}()
+	}
 
 	if this.log == nil {
 		err := cmd.Start()
