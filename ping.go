@@ -66,7 +66,8 @@ func NewPing(title, url string, opts ...PingOption) (*Ping, error) {
 		ch:         make(chan struct{}),
 		wasHealthy: false,
 
-		check: &StatusCheck{},
+		check:     &StatusCheck{},
+		firstTime: true,
 	}
 
 	for _, o := range opts {
@@ -137,7 +138,8 @@ type Ping struct {
 	wasHealthy bool
 	ch         chan struct{}
 
-	check Check
+	check     Check
+	firstTime bool
 }
 
 func (this *Ping) Run(ctx context.Context) {
@@ -175,6 +177,7 @@ func (this *Ping) checkAvailability(ctx context.Context) error {
 
 	req, err := http.NewRequestWithContext(reqCtx, "GET", this.url, nil)
 	if err != nil {
+		this.update(0, false)
 		return err
 	}
 
@@ -213,7 +216,8 @@ func (this *Ping) update(latency int64, health bool) {
 		this.log.Println(err)
 	}
 
-	if this.wasHealthy != health {
+	if this.firstTime || this.wasHealthy != health {
+		this.firstTime = false
 		content := "0\n"
 		if health {
 			content = "1\n"
