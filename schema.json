@@ -51,6 +51,10 @@
         },
         "proxy": {
           "$ref": "#/definitions/Proxy"
+        },
+        "check": {
+          "$ref": "#/definitions/Check",
+          "default": null
         }
       }
     },
@@ -62,6 +66,70 @@
         "http://127.0.0.1:80",
         "https://127.0.0.1:443"
       ]
+    },
+    "Check": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/ShellCheck"
+        },
+        {
+          "$ref": "#/definitions/ExecCheck"
+        }
+      ]
+    },
+    "ShellCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "script"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "shell"
+          ]
+        },
+        "script": {
+          "type": "string"
+        },
+        "shell": {
+          "type": "string",
+          "default": "/usr/bin/sh"
+        },
+        "log": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "ExecCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "exec"
+      ],
+      "description": "Forks a process and sets a single environment variable, AVAIL_HTTP, pointing to a file containing the raw HTTP response from the specified website. If the process exits with status 0, the host is considered online; otherwise, it is considered offline.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "exec"
+          ]
+        },
+        "exec": {
+          "type": "string",
+          "examples": [
+            "/usr/bin/some-binary arg1 arg2 arg3"
+          ]
+        },
+        "log": {
+          "type": "boolean",
+          "default": false
+        }
+      }
     },
     "Duration": {
       "type": "string",
