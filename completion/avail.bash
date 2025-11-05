@@ -9,7 +9,6 @@ _comp_xfunc_avail_get_proc() {
 			if [[ -n $OPTARG ]]; then
 				_out+=("$OPTARG")
 			fi
-
 			break
 			;;
 		*) continue ;;
@@ -23,15 +22,16 @@ _comp_cmd_avail() {
 	_comp_initialize -n : -- "$@" || return
 
 	local cmds
-	cmds="run status list schema"
+	cmds="run status list schema http"
 
-	local global_opts run_opts pid_opts status_opts list_opts schema_opts
+	local global_opts run_opts pid_opts status_opts list_opts schema_opts http_opts
 	global_opts="-h -v"
 	run_opts="-h -c"
 	pid_opts="-P -p -c"
 	status_opts="-h $pid_opts"
 	list_opts="-h $pid_opts"
 	schema_opts="-h"
+	http_opts="-h"
 
 	if [[ $cword -eq 1 ]]; then
 		_comp_compgen -- -W "$cmds $global_opts"
@@ -40,12 +40,18 @@ _comp_cmd_avail() {
 
 	local subcmd="${words[1]}"
 
+	if [[ $subcmd == http && $cword -eq 2 ]]; then
+		_comp_compgen -- -W "status header body"
+		return
+	fi
+
 	if [[ $cur == -* ]]; then
 		case "$subcmd" in
 		run) _comp_compgen -- -W "$run_opts" ;;
 		status) _comp_compgen -- -W "$status_opts" ;;
 		list) _comp_compgen -- -W "$list_opts" ;;
 		schema) _comp_compgen -- -W "$schema_opts" ;;
+		http) _comp_compgen -- -W "$http_opts" ;;
 		*) _comp_compgen -- -W "$global_opts" ;;
 		esac
 		return
