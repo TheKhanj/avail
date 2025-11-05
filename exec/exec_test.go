@@ -7,7 +7,7 @@ import (
 )
 
 func TestExec(t *testing.T) {
-	shlex := `sh -c 'for i in $(seq 3); do echo "hello $i"; sleep 1; done'`
+	shlex := `/usr/bin/sh -c 'for i in $(seq 3); do echo "hello $i"; sleep 1; done'`
 	e, err := New(
 		WithLogger(log.New(os.Stderr, "log-prefix", 0)),
 		WithShlex(shlex),
@@ -16,8 +16,9 @@ func TestExec(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	err = e.Run()
+	_, err = e.Run()
 	if err != nil {
 		t.Fatal(err)
+		return
 	}
 }

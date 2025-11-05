@@ -15,6 +15,13 @@ type Option = func(e *Exec) error
 
 var ErrEmptyCommand = errors.New("Empty command")
 
+func WithEnv(env string) Option {
+	return func(e *Exec) error {
+		e.env = append(e.env, env)
+		return nil
+	}
+}
+
 func WithLogger(l *log.Logger) Option {
 	return func(e *Exec) error {
 		e.log = l
@@ -51,6 +58,7 @@ func New(opts ...Option) (*Exec, error) {
 	e := &Exec{
 		command: "",
 		args:    []string{},
+		env:     []string{},
 		log:     nil,
 	}
 
@@ -72,47 +80,55 @@ func New(opts ...Option) (*Exec, error) {
 type Exec struct {
 	command string
 	args    []string
+	env     []string
 	log     *log.Logger
 }
 
-func (this *Exec) RunContext(ctx context.Context) error {
+func (this *Exec) RunContext(ctx context.Context) (int, error) {
 	cmd := exec.CommandContext(ctx, this.command, this.args...)
 
 	return this.run(cmd)
 }
 
-func (this *Exec) Run() error {
+func (this *Exec) Run() (int, error) {
 	cmd := exec.Command(this.command, this.args...)
 
 	return this.run(cmd)
 }
 
-func (this *Exec) run(cmd *exec.Cmd) error {
+func (this *Exec) run(cmd *exec.Cmd) (int, error) {
+	cmd.Env = this.env
+
 	if this.log == nil {
 		err := cmd.Start()
 		if err != nil {
-			return err
+			return 0, err
 		}
 	} else {
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			return err
+			return 0, err
 		}
 		stderr, err := cmd.StderrPipe()
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		err = cmd.Start()
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		go this.flush("stderr", stderr)
 		go this.flush("stdout", stdout)
 	}
 
-	return cmd.Wait()
+	err := cmd.Wait()
+	if err != nil {
+		return 0, err
+	}
+
+	return cmd.ProcessState.ExitCode(), nil
 }
 
 func (this *Exec) flush(name string, r io.ReadCloser) {
