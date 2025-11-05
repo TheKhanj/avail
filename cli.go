@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -104,6 +107,8 @@ func (this *Cli) Exec() int {
 		return this.status(f.Args()[1:])
 	case "list":
 		return this.list(f.Args()[1:])
+	case "http":
+		return this.http(f.Args()[1:])
 	case "schema":
 		return this.schema(f.Args()[1:])
 	default:
@@ -245,6 +250,172 @@ func (this *Cli) list(args []string) int {
 	}
 
 	fmt.Println(strings.Join(titles, "\n"))
+	return CODE_SUCCESS
+}
+
+func (this *Cli) http(args []string) int {
+	f := flag.NewFlagSet("avail", flag.ExitOnError)
+	help := f.Bool("h", false, "show help")
+	pf := PidFlags{}
+	pf.SetFlags(f)
+
+	f.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  avail http <command> [arguments]")
+		fmt.Fprintln(os.Stderr)
+
+		fmt.Fprintln(os.Stderr, "Available Commands:")
+		fmt.Fprintln(os.Stderr, "  status    get http status line")
+		fmt.Fprintln(os.Stderr, "  header    get a header value")
+		fmt.Fprintln(os.Stderr, "  body      get response body")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Description:")
+		fmt.Fprintln(os.Stderr, "  reads a raw http response from the file set in AVAIL_HTTP and extracts parts of it")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  avail http status")
+		fmt.Fprintln(os.Stderr, "  avail http header content-type")
+		fmt.Fprintln(os.Stderr, "  avail http body")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		f.PrintDefaults()
+	}
+
+	f.Parse(args)
+
+	if *help {
+		f.Usage()
+
+		return CODE_SUCCESS
+	}
+
+	if len(f.Args()) == 0 {
+		return this.notEnoughArguments()
+	}
+
+	filePath, ok := os.LookupEnv("AVAIL_HTTP")
+	if !ok {
+		fmt.Fprintln(os.Stderr, "error: AVAIL_HTTP environment variable is not set")
+		return CODE_GENERAL_ERR
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return CODE_GENERAL_ERR
+	}
+	defer file.Close()
+	buf := bufio.NewReader(file)
+	res, err := http.ReadResponse(buf, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return CODE_GENERAL_ERR
+	}
+	defer res.Body.Close()
+
+	cmd := f.Args()[0]
+	switch cmd {
+	case "status":
+		return this.httpStatus(res, f.Args()[1:])
+	case "header":
+		return this.httpHeader(res, f.Args()[1:])
+	case "body":
+		return this.httpBody(res, f.Args()[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "error: invalid command \"%s\"\n", cmd)
+		return CODE_INVALID_INVOKATION
+	}
+}
+
+func (this *Cli) httpStatus(res *http.Response, args []string) int {
+	f := flag.NewFlagSet("avail", flag.ExitOnError)
+	help := f.Bool("h", false, "show help")
+
+	f.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  avail http status")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		f.PrintDefaults()
+	}
+
+	f.Parse(args)
+
+	if *help {
+		f.Usage()
+
+		return CODE_SUCCESS
+	}
+
+	if len(f.Args()) != 0 {
+		return this.extraArgument(f.Arg(0))
+	}
+
+	fmt.Println(res.StatusCode)
+	return CODE_SUCCESS
+}
+
+func (this *Cli) httpHeader(res *http.Response, args []string) int {
+	f := flag.NewFlagSet("avail", flag.ExitOnError)
+	help := f.Bool("h", false, "show help")
+
+	f.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  avail schema")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		f.PrintDefaults()
+	}
+
+	f.Parse(args)
+
+	if *help {
+		f.Usage()
+
+		return CODE_SUCCESS
+	}
+
+	if len(f.Args()) == 0 {
+		return this.notEnoughArguments()
+	}
+	if len(f.Args()) != 1 {
+		return this.extraArgument(f.Arg(1))
+	}
+
+	key := f.Arg(0)
+	fmt.Println(res.Header.Get(key))
+	return CODE_SUCCESS
+}
+
+func (this *Cli) httpBody(res *http.Response, args []string) int {
+	f := flag.NewFlagSet("avail", flag.ExitOnError)
+	help := f.Bool("h", false, "show help")
+
+	f.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  avail body")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		f.PrintDefaults()
+	}
+
+	f.Parse(args)
+
+	if *help {
+		f.Usage()
+
+		return CODE_SUCCESS
+	}
+
+	if len(f.Args()) != 0 {
+		return this.extraArgument(f.Arg(0))
+	}
+
+	_, err := io.Copy(os.Stdout, res.Body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v", err)
+		return CODE_GENERAL_ERR
+	}
+
 	return CODE_SUCCESS
 }
 
