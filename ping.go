@@ -34,11 +34,21 @@ func NewPingFromConfig(cfg *config.Ping) (*Ping, error) {
 		}
 	}
 
+	checkCfg, err := cfg.GetCheck()
+	if err != nil {
+		return nil, err
+	}
+	check, err := NewCheckFromConfig(checkCfg)
+	if err != nil {
+		return nil, err
+	}
+
 	return NewPing(
 		cfg.Title, cfg.Url,
 		PingWithInterval(interval),
 		PingWithTimeout(timeout),
 		PingWithClient(client),
+		PingWithCheck(check),
 	)
 }
 
@@ -55,6 +65,8 @@ func NewPing(title, url string, opts ...PingOption) (*Ping, error) {
 
 		ch:         make(chan struct{}),
 		wasHealthy: false,
+
+		check: &StatusCheck{},
 	}
 
 	for _, o := range opts {
@@ -73,6 +85,12 @@ func NewPing(title, url string, opts ...PingOption) (*Ping, error) {
 	}
 
 	return base, nil
+}
+
+func PingWithCheck(check Check) PingOption {
+	return func(ping *Ping) {
+		ping.check = check
+	}
 }
 
 func PingWithInterval(interval time.Duration) PingOption {
@@ -118,6 +136,8 @@ type Ping struct {
 
 	wasHealthy bool
 	ch         chan struct{}
+
+	check Check
 }
 
 func (this *Ping) Run(ctx context.Context) {
@@ -135,7 +155,7 @@ func (this *Ping) Run(ctx context.Context) {
 	go this.schedule(ctx)
 
 	for range this.ch {
-		err := this.check(ctx)
+		err := this.checkAvailability(ctx)
 		if err != nil {
 			this.log.Println(err)
 		}
@@ -149,7 +169,7 @@ func (this *Ping) cleanup() {
 	}
 }
 
-func (this *Ping) check(ctx context.Context) error {
+func (this *Ping) checkAvailability(ctx context.Context) error {
 	reqCtx, cancel := context.WithTimeout(ctx, this.timeout)
 	defer cancel()
 
@@ -161,10 +181,14 @@ func (this *Ping) check(ctx context.Context) error {
 	before := time.Now()
 	res, err := this.client.Do(req)
 	after := time.Now()
-
 	latency := after.UnixMilli() - before.UnixMilli()
+	if err != nil {
+		this.update(latency, false)
+		return err
+	}
 
-	if err != nil || !(200 <= res.StatusCode && res.StatusCode < 300) {
+	isUp, err := this.check.IsUp(res)
+	if err != nil || !isUp {
 		this.update(latency, false)
 		return err
 	}

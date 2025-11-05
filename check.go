@@ -8,8 +8,40 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/thekhanj/avail/config"
 	"github.com/thekhanj/avail/exec"
 )
+
+func NewCheckFromConfig(cfg config.Check) (Check, error) {
+	if cfg == nil {
+		return &StatusCheck{}, nil
+	}
+
+	if c, ok := cfg.(*config.ShellCheck); ok {
+		ret := &ShellCheck{
+			shell:  c.Shell,
+			script: c.Script,
+		}
+		if c.Log {
+			ret.log = log.New(os.Stderr, "shell-check", 0)
+		}
+		return ret, nil
+	}
+
+	if c, ok := cfg.(*config.ExecCheck); ok {
+		ret := &ExecCheck{
+			command: c.Exec,
+		}
+		if c.Log {
+			ret.log = log.New(os.Stderr, "exec-check", 0)
+		}
+		return ret, nil
+	}
+
+	invalidErr := fmt.Errorf("Invalid check strategy: %v", cfg)
+
+	return nil, invalidErr
+}
 
 type Check interface {
 	IsUp(res *http.Response) (bool, error)
