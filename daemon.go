@@ -46,8 +46,8 @@ func (this *Daemon) Run(ctx context.Context) error {
 	}
 	defer this.cleanup()
 
-	pings := make([]*Ping, len(this.cfg.Pings))
-	for i, pingCfg := range this.cfg.Pings {
+	pings := make([]*Ping, len(this.cfg.Sites))
+	for i, pingCfg := range this.cfg.Sites {
 		ping, err := NewPingFromConfig(&pingCfg)
 		if err != nil {
 			return err

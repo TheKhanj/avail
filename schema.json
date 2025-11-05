@@ -3,7 +3,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "pings"
+    "sites"
   ],
   "properties": {
     "$schema": {
@@ -13,7 +13,7 @@
       "type": "string",
       "description": "Path to write the pid to. For the user root defaults to /var/run/avail/main.pid and for other users defaults to /var/run/user/{uid}/avail/main.pid"
     },
-    "pings": {
+    "sites": {
       "type": "array",
       "items": {
         "$ref": "#/definitions/Ping"

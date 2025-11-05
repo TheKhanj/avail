@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strings"
 
@@ -293,40 +291,21 @@ func (this *Cli) http(args []string) int {
 		return this.notEnoughArguments()
 	}
 
-	filePath, ok := os.LookupEnv("AVAIL_HTTP")
-	if !ok {
-		fmt.Fprintln(os.Stderr, "error: AVAIL_HTTP environment variable is not set")
-		return CODE_GENERAL_ERR
-	}
-	file, err := os.Open(filePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		return CODE_GENERAL_ERR
-	}
-	defer file.Close()
-	buf := bufio.NewReader(file)
-	res, err := http.ReadResponse(buf, nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		return CODE_GENERAL_ERR
-	}
-	defer res.Body.Close()
-
 	cmd := f.Args()[0]
 	switch cmd {
 	case "status":
-		return this.httpStatus(res, f.Args()[1:])
+		return this.httpStatus(f.Args()[1:])
 	case "header":
-		return this.httpHeader(res, f.Args()[1:])
+		return this.httpHeader(f.Args()[1:])
 	case "body":
-		return this.httpBody(res, f.Args()[1:])
+		return this.httpBody(f.Args()[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "error: invalid command \"%s\"\n", cmd)
 		return CODE_INVALID_INVOKATION
 	}
 }
 
-func (this *Cli) httpStatus(res *http.Response, args []string) int {
+func (this *Cli) httpStatus(args []string) int {
 	f := flag.NewFlagSet("avail", flag.ExitOnError)
 	help := f.Bool("h", false, "show help")
 
@@ -350,11 +329,18 @@ func (this *Cli) httpStatus(res *http.Response, args []string) int {
 		return this.extraArgument(f.Arg(0))
 	}
 
-	fmt.Println(res.StatusCode)
+	http, err := OpenHttpResponse()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return CODE_GENERAL_ERR
+	}
+	defer http.Close()
+
+	fmt.Println(http.Response.StatusCode)
 	return CODE_SUCCESS
 }
 
-func (this *Cli) httpHeader(res *http.Response, args []string) int {
+func (this *Cli) httpHeader(args []string) int {
 	f := flag.NewFlagSet("avail", flag.ExitOnError)
 	help := f.Bool("h", false, "show help")
 
@@ -381,12 +367,19 @@ func (this *Cli) httpHeader(res *http.Response, args []string) int {
 		return this.extraArgument(f.Arg(1))
 	}
 
+	http, err := OpenHttpResponse()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return CODE_GENERAL_ERR
+	}
+	defer http.Close()
+
 	key := f.Arg(0)
-	fmt.Println(res.Header.Get(key))
+	fmt.Println(http.Response.Header.Get(key))
 	return CODE_SUCCESS
 }
 
-func (this *Cli) httpBody(res *http.Response, args []string) int {
+func (this *Cli) httpBody(args []string) int {
 	f := flag.NewFlagSet("avail", flag.ExitOnError)
 	help := f.Bool("h", false, "show help")
 
@@ -410,7 +403,14 @@ func (this *Cli) httpBody(res *http.Response, args []string) int {
 		return this.extraArgument(f.Arg(0))
 	}
 
-	_, err := io.Copy(os.Stdout, res.Body)
+	http, err := OpenHttpResponse()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return CODE_GENERAL_ERR
+	}
+	defer http.Close()
+
+	_, err = io.Copy(os.Stdout, http.Response.Body)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v", err)
 		return CODE_GENERAL_ERR
