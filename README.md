@@ -22,6 +22,16 @@ Example schema (simplified):
       "title": "example",
       "url": "https://example.com",
       "interval": "60s"
+    },
+    {
+      "title": "youtube-music",
+      "url": "https://music.youtube.com/",
+      "interval": "5m",
+      "proxy": "socks5://127.0.0.1:9050",
+      "check": {
+        "type": "shell",
+        "script": "[ \"$(avail http status)\" -eq 200 ] && ! avail http body | grep -q 'YouTube Music is not available in your area'"
+      }
     }
   ]
 }
