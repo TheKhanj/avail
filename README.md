@@ -1,5 +1,6 @@
 # avail
 `avail` is a lightweight HTTP site monitoring tool that tracks availability, latency, and health of configured websites. It exposes metrics through files, making it easy to integrate with other monitoring tools or custom scripts.
+![CLI screenshot](./assets/cli.png)
 
 # Features
 Monitor multiple HTTP sites periodically.
